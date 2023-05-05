@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Flask Chat</title>
+</head>
+
+<body>
+  <h1>Flask Chat with SSE</h1>
+
+  <form id="SendMessage" onsubmit="return FormSubmit()">
+    <label for="user">Username:</label>
+    <input type="text" id="user" name="user"><br><br>
+    <label for="msg">Message:</label>
+    <input type="text" id="msg" name="msg"><br><br>
+    <input type="submit" value="Submit">
+  </form>
+
+  <ul>
+  </ul>
+
+  <script>
+
+
+    // We submit the form with AJAX to stop the page from reloading when submitted
+    function FormSubmit() {
+      var data = new FormData(document.getElementById("SendMessage"));
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", "/");
+      xhr.onload = function () { }; // We don't need to do anything here
+      xhr.send(data);
+      return false; // Stops the HTML from submitting itself
+    }
+
+    // We use SSE (Server-side Events) to listen for messages from the server
+    // In this case these are literally messages from other clients
+    const uuid = self.crypto.randomUUID(); // I want to use uuid to send some data to a specific client.
+    const sse = new EventSource(`{{ url_for('listen') }}/${uuid}`);
+    const eventList = document.querySelector("ul");
+
+    // A generic message receiver. Other event types can be generated
+    sse.addEventListener('message', (event) => {
+      const newElement = document.createElement("li");
+      newElement.textContent = event.data;
+      eventList.appendChild(newElement);
+    });
+
+    // A specific event type "badword"
+    sse.addEventListener('badword', (event) => {
+      alert(event.data);
+    });
+
+    // An alert is shown if SSE session fails to establish
+    sse.addEventListener('error', (event) => {
+      alert("Failed to connect to event stream.");
+    });
+
+  </script>
+
+</body>
+
+</html>
