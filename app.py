@@ -10,15 +10,24 @@ app = Flask(__name__)
 
 class MessageAnnouncer:
     def __init__(self):
-        self.listeners = []
+        self.listeners = dict()
 
-    def listen(self):
-        self.listeners.append(Queue(maxsize=5))
-        return self.listeners[-1]
+    def listen(self, uuid):
+        """Add a new listener"""
+        self.listeners[uuid] = Queue(maxsize=5)
+        return self.listeners[uuid]
 
-    def announce(self, msg):
-        # We go in reverse order because we might have to delete an element
-        for i in reversed(range(len(self.listeners))):
+    def unicast(self, msg, uuid):
+        """Send message to a specific listener"""
+        try:
+            self.listeners[uuid].put_nowait(msg)
+        except Full:
+            del self.listeners[uuid]
+
+    def broadcast(self, msg):
+        """Send message to all listeners"""
+        for i in reversed(list(self.listeners)):
+            """We loop in reverse as disconnected listeners are removed"""
             try:
                 self.listeners[i].put_nowait(msg)
             except Full:
@@ -41,16 +50,17 @@ def post_message():
     The event keyword is optional."""
     user = request.form["user"]
     message = request.form["msg"]
+    uuid = request.form["uuid"]
     print(f"{user}: {message}")
 
     if "fuck" in message:
         """We send message as a "badword" event"""
-        sse_message = f"event: badword\ndata: Please don't use bad words.\n\n"
+        sse_message = f"event: badword\ndata: Please don't swear.\n\n"
+        announcer.unicast(sse_message, uuid)
     else:
         """This is a normal SSE message"""
         sse_message = f"data: {user}: {message}\n\n"
-
-    announcer.announce(sse_message)
+        announcer.broadcast(sse_message)
 
     """We don't need to return anything as request was made by AJAX"""
     return {}, 200
@@ -59,10 +69,10 @@ def post_message():
 @app.get("/listen")
 @app.get("/listen/<uuid>")
 def listen(uuid=None):
-    print(uuid)
+    """A new listener session is established, allowing server to send messages"""
 
     def stream():
-        messages = announcer.listen()  # returns a Queue
+        messages = announcer.listen(uuid)  # returns a Queue
         while True:
             msg = messages.get()  # blocks until a new message arrives
             yield msg

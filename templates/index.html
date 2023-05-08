@@ -10,9 +10,9 @@
 
   <form id="SendMessage" onsubmit="return FormSubmit()">
     <label for="user">Username:</label>
-    <input type="text" id="user" name="user"><br><br>
+    <input type="text" id="user" name="user" autocomplete="off"><br><br>
     <label for="msg">Message:</label>
-    <input type="text" id="msg" name="msg"><br><br>
+    <input type="text" id="msg" name="msg" autocomplete="off"><br><br>
     <input type="submit" value="Submit">
   </form>
 
@@ -21,19 +21,17 @@
 
   <script>
 
-
     // We submit the form with AJAX to stop the page from reloading when submitted
     function FormSubmit() {
       var data = new FormData(document.getElementById("SendMessage"));
+      data.append('uuid', uuid);
       var xhr = new XMLHttpRequest();
       xhr.open("POST", "/");
-      xhr.onload = function () { }; // We don't need to do anything here
       xhr.send(data);
       return false; // Stops the HTML from submitting itself
     }
 
     // We use SSE (Server-side Events) to listen for messages from the server
-    // In this case these are literally messages from other clients
     const uuid = self.crypto.randomUUID(); // I want to use uuid to send some data to a specific client.
     const sse = new EventSource(`{{ url_for('listen') }}/${uuid}`);
     const eventList = document.querySelector("ul");
