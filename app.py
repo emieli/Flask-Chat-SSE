@@ -8,32 +8,26 @@ https://maxhalford.github.io/blog/flask-sse-no-deps/
 app = Flask(__name__)
 
 
-class MessageAnnouncer:
-    def __init__(self):
-        self.listeners = dict()
-        self.chat_history = []
+class Listener:
+    def __init__(self, uuid, username):
+        self.queue = Queue(maxsize=5)
+        self.username = username
+        self.uuid = uuid
 
+
+class MessageAnnouncer:
     @property
     def users(self) -> list:
         """Return list of active users"""
-        users = [listener["username"] for listener in announcer.listeners.values()]
+        users = [listener.username for listener in listeners.values()]
         return users
-
-    def listen(self, uuid: str, username: str) -> Queue:
-        """Add a new listener"""
-        self.listeners[uuid] = {
-            "message_queue": Queue(maxsize=5),
-            "username": username,
-        }
-        self.update_userlist()
-        return self.listeners[uuid]["message_queue"]
 
     def unicast(self, msg, uuid):
         """Send message to a specific listener"""
         try:
-            self.listeners[uuid]["message_queue"].put_nowait(msg)
+            listeners[uuid].queue.put_nowait(msg)
         except Full:
-            del self.listeners[uuid]
+            del listeners[uuid]
             self.update_userlist()
 
     def broadcast(self, msg):
@@ -41,13 +35,13 @@ class MessageAnnouncer:
         print(msg.strip())
         print()
         if msg.startswith("data: "):
-            self.chat_history.append(msg.replace("data: ", ""))
-        for i in reversed(list(self.listeners)):
+            chat_history.append(msg.replace("data: ", ""))
+        for i in reversed(list(listeners)):
             """We loop in reverse as disconnected listeners are removed"""
             try:
-                self.listeners[i]["message_queue"].put_nowait(msg)
+                listeners[i].queue.put_nowait(msg)
             except Full:
-                del self.listeners[i]
+                del listeners[i]
                 self.update_userlist()
 
     def update_userlist(self):
@@ -56,6 +50,8 @@ class MessageAnnouncer:
         self.broadcast(f"{event}\ndata: {users}\n\n")
 
 
+chat_history = ["line one", "line two"]
+listeners = dict()
 announcer = MessageAnnouncer()
 
 
@@ -72,9 +68,9 @@ def post_message():
     The event keyword is optional."""
     message = request.form["message"]
     uuid = request.form["uuid"]
-    user = announcer.listeners[uuid]["username"]
+    user = listeners[uuid].username
 
-    if not uuid in announcer.listeners:
+    if not uuid in listeners:
         """Must be a registered listener to send messages"""
         return {}, 403
 
@@ -94,7 +90,7 @@ def post_message():
             announcer.unicast(help_message, uuid)
             return {}, 200
         new_username = message_split[-1]
-        announcer.listeners[uuid]["username"] = new_username
+        listeners[uuid].username = new_username
         announcer.broadcast(f"data: {user} changed name to {new_username}\n\n")
         announcer.update_userlist()
         announcer.unicast(f"event: newUsername\ndata: {new_username}\n\n", uuid)
@@ -111,13 +107,12 @@ def post_message():
 @app.get("/listen")
 @app.get("/listen/<uuid_and_user>")
 def listen(uuid_and_user=None):
-    """Establish a new listener session, allowing server to send messages.
-    Each listener is identified by its unique UUID, allowing the server
-    to send messages to only chat client.
+    """Establish a new listener session, for server to continue sending messages.
+    Each listener is identified by its unique UUID, allowing the server to send
+    messages to a specific listener.
 
-    When connecting, the listener also sends the username save in its
-    browser localStorage. If the value is null, the server generates a
-    GuestNNN name.
+    When connecting, the listener also sends the username save in its browser
+    localStorage. If the value is null, the server generates a GuestNNN name.
     """
 
     if not uuid_and_user:
@@ -140,10 +135,16 @@ def listen(uuid_and_user=None):
 
     def stream():
         announcer.broadcast(f"data: {username} has joined the chat\n\n")
-        messages = announcer.listen(uuid, username)  # returns a Queue
-        last_hundred_messages = "\ndata: ".join(announcer.chat_history[-100:])
+
+        listener = Listener(uuid, username)
+        listeners[uuid] = listener
+        messages = listener.queue
+
+        last_hundred_messages = "\ndata: ".join(chat_history[-100:])
         announcer.unicast(f"event: newUsername\ndata: {username}\n\n", uuid)
         announcer.unicast(f"event: connected\ndata: {last_hundred_messages}\n\n", uuid)
+        announcer.update_userlist()
+
         while True:
             msg = messages.get()  # blocks until a new message arrives
             yield msg
