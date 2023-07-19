@@ -7,7 +7,7 @@ Right off the bat SSE has one problem though, and that's sending information to 
 
 # Installation
 
-    $ apt install python3-venv
+    $ apt install python3-pip python3-venv
     $ python3 -m venv venv
     $ source venv/bin/activate
     $ pip install --upgrade pip
@@ -16,3 +16,5 @@ Right off the bat SSE has one problem though, and that's sending information to 
 # Running Flask:
 
     $ flask run --host=0.0.0.0
+
+Note that we need to use TLS for SSE to work, so we need an Nginx instance in front. I should probably document this...

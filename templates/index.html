@@ -68,14 +68,15 @@
 
     // Retrieve user list
     sse.addEventListener('userlist', (event) => {
-      // console.log(event);
+      console.log(event);
       userbox.textContent = event.data;
     });
 
     // An alert is shown if SSE session fails to establish
     sse.addEventListener('error', (event) => {
       // console.log(event);
-      chatbox.textContent = ("Failed to connect to server.");
+      chatbox.textContent = "Failed to connect to server.";
+      userbox.textContent = ""; // Clear users
     });
 
     // A generic message receiver. Other event types can be generated

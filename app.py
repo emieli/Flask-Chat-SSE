@@ -22,32 +22,68 @@ class MessageAnnouncer:
         users = [listener.username for listener in listeners.values()]
         return users
 
-    def unicast(self, msg, uuid):
-        """Send message to a specific listener"""
-        try:
-            listeners[uuid].queue.put_nowait(msg)
-        except Full:
-            del listeners[uuid]
-            self.update_userlist()
+    def build_sse_message(self, data: str | list, event: str = "") -> None | ValueError:
+        """Format data into SSE message."""
+        message = ""
+        if event:
+            message += f"event: {event}\n"
+        else:
+            chat_history.append(data)
 
-    def broadcast(self, msg):
+        if isinstance(data, list):
+            """Multiple lines of data"""
+            message += "data: " + "\ndata: ".join(data)
+        elif isinstance(data, str):
+            """A single line of data"""
+            if "\n" in data:
+                raise ValueError("The data string must be a single line")
+            message += f"data: {data}"
+
+        print(message + "\n")
+        message += "\n\n"  # To signal that we have reached the end of the message
+        return message
+
+    def broadcast(self, data: str | list, event: str = "") -> None | ValueError:
         """Send message to all listeners"""
-        print(msg.strip())
-        print()
-        if msg.startswith("data: "):
-            chat_history.append(msg.replace("data: ", ""))
+
+        """Input validation"""
+        if not data:
+            raise ValueError("No data to send")
+
+        """Build the SSE message"""
+        message = self.build_sse_message(data, event)
+
         for i in reversed(list(listeners)):
             """We loop in reverse as disconnected listeners are removed"""
             try:
-                listeners[i].queue.put_nowait(msg)
+                listeners[i].queue.put_nowait(message)
             except Full:
                 del listeners[i]
                 self.update_userlist()
 
+    def unicast(self, data: str | list, uuid: str, event: str = "") -> None | ValueError:
+        """Send message to a specific listener
+        Multiple lines of data must be a list of strings
+        A single line of data can be a string."""
+
+        """Input validation"""
+        if not uuid:
+            raise ValueError("UUID must be given")
+        if not data:
+            raise ValueError("No data to send")
+
+        """Build the SSE message"""
+        message = self.build_sse_message(data, event)
+
+        """Send SSE message"""
+        try:
+            listeners[uuid].queue.put_nowait(message)
+        except Full:
+            del listeners[uuid]
+            self.update_userlist()
+
     def update_userlist(self):
-        event = "event: userlist"
-        users = "\ndata: ".join(self.users)
-        self.broadcast(f"{event}\ndata: {users}\n\n")
+        self.broadcast(self.users, event="userlist")
 
 
 chat_history = ["line one", "line two"]
@@ -76,31 +112,31 @@ def post_message():
 
     if "fuck" in message:
         """We send message as a "badword" event"""
-        sse_message = f"data: Server: Please don't swear.\n\n"
-        announcer.unicast(sse_message, uuid)
+        message = "Server: Please don't swear."
+        announcer.unicast(message, uuid)
         return {}, 200
 
     if message == "!username" or message.startswith("!username "):
         """Update username"""
         message_split = message.split()
         if len(message_split) != 2:
-            help_message = f"data: {message}\n"
-            help_message += "data: This command allow you to change your username. It may not contain any spaces\n"
-            help_message += "data: Example: !username Guest666\n"
+            help_message = [
+                message,
+                "This command allow you to change your username. It may not contain any spaces",
+                "Example: !username Guest666",
+            ]
             announcer.unicast(help_message, uuid)
             return {}, 200
         new_username = message_split[-1]
         listeners[uuid].username = new_username
-        announcer.broadcast(f"data: {user} changed name to {new_username}\n\n")
+        announcer.broadcast(f"{user} changed name to {new_username}")
         announcer.update_userlist()
-        announcer.unicast(f"event: newUsername\ndata: {new_username}\n\n", uuid)
+        announcer.unicast(new_username, uuid, event="newUsername")
         return {}, 200
 
     """This is a normal SSE message"""
     formatted_message = f"{user}: {message}"
-    # print(formatted_message)
-    sse_message = f"data: {formatted_message}\n\n"
-    announcer.broadcast(sse_message)
+    announcer.broadcast(formatted_message)
     return {}, 200
 
 
@@ -134,15 +170,15 @@ def listen(uuid_and_user=None):
                 break
 
     def stream():
-        announcer.broadcast(f"data: {username} has joined the chat\n\n")
+        announcer.broadcast(data=f"{username} has joined the chat")
 
         listener = Listener(uuid, username)
         listeners[uuid] = listener
         messages = listener.queue
 
-        last_hundred_messages = "\ndata: ".join(chat_history[-100:])
-        announcer.unicast(f"event: newUsername\ndata: {username}\n\n", uuid)
-        announcer.unicast(f"event: connected\ndata: {last_hundred_messages}\n\n", uuid)
+        last_hundred_messages = chat_history[-100:]
+        announcer.unicast(username, uuid, event="newUsername")
+        announcer.unicast(last_hundred_messages, uuid, event="connected")
         announcer.update_userlist()
 
         while True:
