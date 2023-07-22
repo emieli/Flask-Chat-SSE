@@ -51,6 +51,29 @@
 
   <script>
 
+    const userbox = document.querySelector("#userbox");
+    const messagebox = document.querySelector("#messagebox");
+    const chatbox = document.querySelector("#chatbox");
+
+    // Resize chat window on page load
+    function resizeChatbox() {
+      windowHeight = window.innerHeight; // viewport height
+      documentHeight = document.documentElement.offsetHeight; // page height
+      spaceToFill = windowHeight - documentHeight; // may be a negative number if page is larger than viewport
+      chatbox.style.height = chatbox.clientHeight + spaceToFill + "px";
+    }
+    resizeChatbox();
+
+    // Resize chatbox on window resize
+    window.addEventListener("resize", resizeChatbox);
+
+    // Resize chatbox on document resize, like when Userbox is opened or closed.
+    const observer = new ResizeObserver(entries => {
+      console.log(entries);
+      resizeChatbox();
+    });
+    observer.observe(document.querySelector('body'));
+
     // We submit the form with AJAX to stop the page from reloading when submitted
     function FormSubmit() {
       var data = new FormData(document.getElementById("SendMessage"));
@@ -66,9 +89,6 @@
     const uuid = self.crypto.randomUUID(); // I want to use uuid to send some data to a specific client.
     let username = localStorage.getItem("username");
     const sse = new EventSource(`{{ url_for('listen') }}/${uuid}&${username}`);
-    const chatbox = document.querySelector("#chatbox");
-    const userbox = document.querySelector("#userbox");
-    const messagebox = document.querySelector("#messagebox");
 
     // Connection is successfully established
     sse.addEventListener('connected', (event) => {
