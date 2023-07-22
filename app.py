@@ -86,6 +86,47 @@ class MessageAnnouncer:
         self.broadcast(self.users, event="userlist")
 
 
+class CommandHandler:
+    def __init__(self, message: str, uuid: str):
+        self.uuid = uuid
+        command, *args = message.split()
+        match command:
+            case "!username":
+                self.username(args)
+            case "!help":
+                message = [
+                    "Welcome to Chat, created by Golle.",
+                    "Available commands:",
+                    "  !username - Change your username",
+                ]
+                announcer.unicast(message, uuid)
+            case _:
+                message = [
+                    f"{message} is an unknown command.",
+                    "Enter !help to see available commands.",
+                ]
+                announcer.unicast(message, uuid)
+
+    def username(self, args):
+        """Process the !username commmand"""
+        if len(args) != 1:
+            help_message = [
+                f"!username {' '.join(args)}",
+                "This command allow you to change your username. It may not contain any spaces",
+                "Example: !username Guest666",
+            ]
+            announcer.unicast(help_message, self.uuid)
+            return
+
+        username = listeners[self.uuid].username
+        new_username = args[0]
+
+        listeners[self.uuid].username = new_username
+        announcer.broadcast(f"{username} changed name to {new_username}")
+        announcer.update_userlist()
+        announcer.unicast(new_username, self.uuid, event="newUsername")
+
+
 chat_history = ["line one", "line two"]
 listeners = dict()
 announcer = MessageAnnouncer()
@@ -116,22 +157,8 @@ def post_message():
         announcer.unicast(message, uuid)
         return {}, 200
 
-    if message == "!username" or message.startswith("!username "):
-        """Update username"""
-        message_split = message.split()
-        if len(message_split) != 2:
-            help_message = [
-                message,
-                "This command allow you to change your username. It may not contain any spaces",
-                "Example: !username Guest666",
-            ]
-            announcer.unicast(help_message, uuid)
-            return {}, 200
-        new_username = message_split[-1]
-        listeners[uuid].username = new_username
-        announcer.broadcast(f"{user} changed name to {new_username}")
-        announcer.update_userlist()
-        announcer.unicast(new_username, uuid, event="newUsername")
+    if message.startswith("!"):
+        commandhandler = CommandHandler(message, uuid)
         return {}, 200
 
     """This is a normal SSE message"""
