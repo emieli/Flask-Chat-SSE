@@ -197,9 +197,9 @@ def listen(uuid_and_user=None):
                 username = guest_username
                 break
 
-    def stream():
-        announcer.broadcast(data=f"{username} has joined the chat")
+    announcer.broadcast(data=f"{username} has joined the chat")
 
+    def stream():
         listener = Listener(uuid, username)
         listeners[uuid] = listener
         messages = listener.queue
@@ -207,6 +207,7 @@ def listen(uuid_and_user=None):
         last_hundred_messages = chat_history[-100:]
         announcer.unicast(username, uuid, event="newUsername")
         announcer.unicast(last_hundred_messages, uuid, event="connected")
+        announcer.unicast("Enter !help to see available commands.", uuid)
         announcer.update_userlist()
 
         while True:
