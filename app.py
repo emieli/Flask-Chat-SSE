@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 
 class Listener:
-    def __init__(self, uuid, username):
+    def __init__(self, uuid: str, username: str):
         self.queue = Queue(maxsize=5)
         self.username = username
         self.uuid = uuid
@@ -17,7 +17,7 @@ class Listener:
 
 class MessageAnnouncer:
     @property
-    def users(self) -> list:
+    def users(self) -> list[str]:
         """Return list of active users"""
         users = [listener.username for listener in listeners.values()]
         return users
