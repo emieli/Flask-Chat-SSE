@@ -27,8 +27,6 @@ class MessageAnnouncer:
         message = ""
         if event:
             message += f"event: {event}\n"
-        else:
-            chat_history.append(data)
 
         if isinstance(data, list):
             """Multiple lines of data"""
@@ -49,6 +47,9 @@ class MessageAnnouncer:
         """Input validation"""
         if not data:
             raise ValueError("No data to send")
+
+        if not event:
+            chat_history.append(data)
 
         """Build the SSE message"""
         message = self.build_sse_message(data, event)
