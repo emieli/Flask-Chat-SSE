@@ -38,6 +38,7 @@ This isn't a true production setup as we're using the builtin Flask development 
 
     $ sudo systemctl daemon-reload
     $ sudo systemctl start flask_webserver.service
+    $ sudo systemctl enable flask_webserver.service
 
 ### Show logs:
 
