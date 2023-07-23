@@ -34,7 +34,8 @@
             data-bs-target="#main-collapseTwo">Chat</button>
         </h2>
         <div id="main-collapseTwo" class="accordion-collapse collapse show">
-          <textarea readonly style="width: 100%;border: none" class="accordion-body text-white bg-dark" id="chatbox">
+          <textarea readonly style="width: 100%;border: none;resize: none" class="accordion-body text-white bg-dark"
+            id="chatbox">
             text
           </textarea>
         </div>
@@ -69,7 +70,7 @@
 
     // Resize chatbox on document resize, like when Userbox is opened or closed.
     const observer = new ResizeObserver(entries => {
-      console.log(entries);
+      // console.log(entries);
       resizeChatbox();
     });
     observer.observe(document.querySelector('body'));
@@ -91,23 +92,10 @@
     const sse = new EventSource(`{{ url_for('listen') }}/${uuid}&${username}`);
 
     // Connection is successfully established
-    sse.addEventListener('connected', (event) => {
+    sse.addEventListener('open', (event) => {
       // console.log(event);
-      chatbox.textContent = event.data;
+      chatbox.textContent = "";
       chatbox.scrollTop = chatbox.scrollHeight;
-    });
-
-    // Username received from server
-    sse.addEventListener('newUsername', (event) => {
-      // console.log(event);
-      username = event.data;
-      localStorage.setItem("username", username);
-    });
-
-    // Retrieve user list
-    sse.addEventListener('userlist', (event) => {
-      // console.log(event);
-      userbox.textContent = event.data;
     });
 
     // An alert is shown if SSE session fails to establish
@@ -117,11 +105,55 @@
       userbox.textContent = ""; // Clear users
     });
 
-    // A generic message receiver. Other event types can be generated
-    sse.addEventListener('message', (event) => {
+    // A new message is received
+    sse.addEventListener('new_message', (event) => {
       // console.log(event);
-      chatbox.textContent += "\n" + event.data;
+      const data = JSON.parse(event.data);
+
+      let user = data.user;
+      let timestamp = data.timestamp;
+
+      // Format timestamp
+      if (timestamp === undefined) {
+        timestamp = "";
+      } else {
+        const date = new Date(data.timestamp * 1000);
+        const hour = "0" + date.getHours();
+        const minute = "0" + date.getMinutes();
+        timestamp = `[${hour.substr(-2)}:${minute.substr(-2)}] `;
+      }
+
+      // Format user
+      if (data.user === undefined) {
+        user = "";
+      } else {
+        user = `${data.user}: `;
+      }
+
+      // Format message and print to screen
+      message = timestamp + user + data.message;
+      if (chatbox.textContent === "") {
+        chatbox.textContent = message;
+      } else {
+        chatbox.textContent += "\n" + message;
+      }
       chatbox.scrollTop = chatbox.scrollHeight;
+    });
+
+    // Username received from server
+    sse.addEventListener('new_username', (event) => {
+      username = event.data;
+      localStorage.setItem("username", username);
+    });
+
+    // The list of users is received
+    sse.addEventListener('userlist', (event) => {
+      userbox.textContent = event.data;
+    });
+
+    // A generic message receiver that is currently unused.
+    sse.addEventListener('message', (event) => {
+      console.log(event);
     });
 
   </script>
